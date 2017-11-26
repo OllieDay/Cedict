@@ -36,17 +36,13 @@ module DictTests
     [<Fact>]
     let ``Dict.FromStream should parse valid entries`` () =
         let dict = createDict ["你好 你好 [ni3 hao3] /Hello!/Hi!/How are you?/"];
-        let entry = Seq.exactlyOne dict.Entries
 
-        entry.Traditional
-            |> should equal "你好"
+        let expected = {
+            Traditional = "你好"
+            Simplified = "你好"
+            Pinyin = "ni3 hao3"
+            English = [|"Hello!"; "Hi!"; "How are you?"|]
+        }
 
-        entry.Simplified
-            |> should equal "你好"
-
-        entry.Pinyin
-            |> should equal "ni3 hao3"
-
-        entry.English
-            |> Seq.toList
-            |> should matchList ["Hello!"; "Hi!"; "How are you?"]
+        Seq.exactlyOne dict.Entries
+            |> should equal expected

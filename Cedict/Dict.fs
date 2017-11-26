@@ -4,13 +4,13 @@ namespace Cedict
     open System.Linq
     open System.Text.RegularExpressions
 
-    [<Sealed>]
-    type public Entry internal (traditional, simplified, pinyin, english) =
+    type public Entry = {
+        Traditional : string
+        Simplified : string
+        Pinyin : string
+        English : string seq
+    }
 
-        member public this.Traditional = traditional
-        member public this.Simplified = simplified
-        member public this.Pinyin = pinyin
-        member public this.English = english
 
     [<Sealed>]
     type public Dict private (entries : Entry seq) =
@@ -21,12 +21,12 @@ namespace Cedict
             if matches.Count = 1 then
                 let groups = matches.[0].Groups
 
-                Some <| Entry (
-                    groups.[1].Value,
-                    groups.[2].Value,
-                    groups.[3].Value,
-                    Array.toSeq <| groups.[4].Value.Split '/'
-                )
+                Some {
+                    Traditional = groups.[1].Value
+                    Simplified = groups.[2].Value
+                    Pinyin = groups.[3].Value
+                    English = groups.[4].Value.Split '/'
+                }
             else None
 
         static let rec readEntries entries = function
@@ -48,7 +48,6 @@ namespace Cedict
             reader.ReadToEnd().Split '\n'
                 |> Array.toList
                 |> readEntries []
-                |> List.toSeq
                 |> Dict
 
         static member public FromFile path =

@@ -15,16 +15,21 @@ namespace Cedict.Example
 			}
 
 			var path = args[0];
-			var searchTerm = args[1];
+			var value = args[1];
 
 			var dict = Dict.FromFile(path);
 
-			foreach (var entry in dict.Entries)
+			var options = new SearchOptions(
+				targets: Targets.Traditional | Targets.Simplified,
+				match: Match.Full,
+				limit: 3
+			);
+
+			var results = dict.Search(options, value);
+
+			foreach (var entry in results)
 			{
-				if (entry.Traditional == searchTerm || entry.Simplified == searchTerm)
-				{
-					PrintEntry(entry);
-				}
+				PrintEntry(entry);
 			}
 
 			return 0;

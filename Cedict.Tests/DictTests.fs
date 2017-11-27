@@ -46,3 +46,100 @@ module DictTests
 
         Seq.exactlyOne dict.Entries
             |> should equal expected
+
+    [<Theory>]
+    [<InlineData (Targets.Traditional, "中國")>]
+    [<InlineData (Targets.Simplified, "中国")>]
+    [<InlineData (Targets.Pinyin, "Zhong1 guo2")>]
+    [<InlineData (Targets.English, "China")>]
+    let ``Dict.Search should not return results for target`` target value =
+        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
+
+        let targets = Targets.All &&& ~~~target
+
+        let options = {
+            Targets = targets
+            Match = Match.Full
+            Limit = 1
+        }
+
+        let results = dict.Search (options, value)
+
+        Seq.length results
+            |> should equal 0
+
+    [<Theory>]
+    [<InlineData (Targets.Traditional, "中國")>]
+    [<InlineData (Targets.Simplified, "中国")>]
+    [<InlineData (Targets.Pinyin, "Zhong1 guo2")>]
+    [<InlineData (Targets.English, "China")>]
+    let ``Dict.Search should return results for target`` target value =
+        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
+
+        let options = {
+            Targets = target
+            Match = Match.Full
+            Limit = 1
+        }
+
+        let results = dict.Search (options, value)
+
+        Seq.length results
+            |> should equal 1
+
+    [<Theory>]
+    [<InlineData (Targets.Traditional, "國")>]
+    [<InlineData (Targets.Simplified, "国")>]
+    [<InlineData (Targets.Pinyin, "guo2")>]
+    [<InlineData (Targets.English, "Ch")>]
+    let ``Dict.Search should return results for full match`` target value =
+        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
+
+        let options = {
+            Targets = target
+            Match = Match.Full
+            Limit = 1
+        }
+
+        let results = dict.Search (options, value)
+
+        Seq.length results
+            |> should equal 0
+
+    [<Theory>]
+    [<InlineData (Targets.Traditional, "國")>]
+    [<InlineData (Targets.Simplified, "国")>]
+    [<InlineData (Targets.Pinyin, "guo2")>]
+    [<InlineData (Targets.English, "Ch")>]
+    let ``Dict.Search should return results for partial match`` target value =
+        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
+
+        let options = {
+            Targets = target
+            Match = Match.Partial
+            Limit = 1
+        }
+
+        let results = dict.Search (options, value)
+
+        Seq.length results
+            |> should equal 1
+
+    [<Theory>]
+    [<InlineData "中國">]
+    [<InlineData "中国">]
+    [<InlineData "Zhong1 guo2">]
+    [<InlineData "China">]
+    let ``Dict.Search should limit results`` value =
+        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"; "中國 中国 [Zhong1 guo2] /China/"]
+
+        let options = {
+            Targets = Targets.All
+            Match = Match.Full
+            Limit = 1
+        }
+
+        let results = dict.Search (options, value)
+
+        Seq.length results
+            |> should equal 1

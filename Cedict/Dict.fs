@@ -1,94 +1,78 @@
 namespace Cedict
 
-    open System.IO
-    open System.Linq
-    open System.Text.RegularExpressions
-
-    type public Entry = {
+    type Entry = {
         Traditional : string
         Simplified : string
         Pinyin : string
-        English : string seq
+        English : seq<string>
     }
 
-    type public Targets =
-        | Traditional = 1
-        | Simplified = 2
-        | Pinyin = 4
-        | English = 8
-        | All = 15
+    type Target = Traditional | Simplified | Pinyin | English
+    type Match = Partial | Full
 
-    type public Match =
-        | Partial = 0
-        | Full = 1
-
-    type public SearchOptions = {
-        Targets : Targets
+    type SearchOptions = {
+        Targets : Target list
         Match : Match
         Limit : int
     }
 
-    [<Sealed>]
-    type public Dict private (entries : Entry seq) =
+    module Dict =
 
-        let (|>>) f g x = f x || g x
+        open System.IO
+        open System.Text.RegularExpressions
 
-        static let readEntry line =
+        let private readLines (stream : Stream) =
+            use reader = new StreamReader (stream)
+            let rec readLines lines =
+                match reader.ReadLine () with
+                | null -> lines
+                | line -> readLines (line :: lines)
+            readLines []
+
+        let private readEntry line =
             let matches = Regex.Matches (line, "(\S+)\s(\S+)\s\[([^\]]+)\]\s\/(.+)\/")
-
-            if matches.Count = 1 then
+            match matches.Count with
+            | 1 ->
                 let groups = matches.[0].Groups
-
                 Some {
                     Traditional = groups.[1].Value
                     Simplified = groups.[2].Value
                     Pinyin = groups.[3].Value
                     English = groups.[4].Value.Split '/'
                 }
-            else None
+            | _ -> None
 
-        static let rec readEntries entries = function
-            | [] -> entries
-            | head :: tail ->
-                let newEntries =
-                    match readEntry head with
-                    | Some entry -> entry :: entries
-                    | None -> entries
+        let private readEntries =
+            let rec readEntries entries = function
+                | [] -> entries
+                | head :: tail ->
+                    readEntries (readEntry head :: entries) tail
+            readEntries [] >> List.choose id
 
-                readEntries newEntries tail
+        let fromStream : Stream -> Entry list =
+            readLines >> readEntries
 
-        member public this.Entries = entries
-        member public this.Length = entries.Count ()
+        let fromFile =
+            File.OpenRead >> fromStream
 
-        static member public FromStream (stream : Stream) =
-            use reader = new StreamReader (stream)
-
-            reader.ReadToEnd().Split '\n'
-                |> Array.toList
-                |> readEntries []
-                |> Dict
-
-        static member public FromFile path =
-            File.OpenRead path |> Dict.FromStream
-
-        member public this.Search (options, value) =
+        let search options value =
+            let isExactMatch = (=) value
+            let isPartialMatch (x : string) = x.Contains value
             let isMatch =
-                if options.Match = Match.Partial then
-                    (fun (x : string) -> x.Contains value)
-                else (=) value
-
+                match options.Match with
+                | Full -> isExactMatch
+                | Partial -> isPartialMatch
+            let hasTarget target = List.contains target options.Targets
             let predicates = seq {
-                if options.Targets.HasFlag Targets.Traditional then
+                if hasTarget Traditional then
                     yield (fun entry -> isMatch entry.Traditional)
-                if options.Targets.HasFlag Targets.Simplified then
+                if hasTarget Simplified then
                     yield (fun entry -> isMatch entry.Simplified)
-                if options.Targets.HasFlag Targets.Pinyin then
+                if hasTarget Pinyin then
                     yield (fun entry -> isMatch entry.Pinyin)
-                if options.Targets.HasFlag Targets.English then
+                if hasTarget English then
                     yield (fun entry -> Seq.exists isMatch entry.English)
             }
-
-            let predicate = Seq.reduce (|>>) predicates
-            let matches = Seq.filter predicate entries
-
-            matches.Take options.Limit
+            let either f g x = f x || g x
+            let predicate = Seq.reduce either predicates
+            List.filter predicate >> List.truncate options.Limit

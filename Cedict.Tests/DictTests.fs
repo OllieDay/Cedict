@@ -7,122 +7,118 @@ module DictTests
     open System.Text
     open Xunit
 
-    let createDict (lines : string list) =
+    let createEntries (lines : string list) =
         String.Join (Environment.NewLine, lines)
             |> Encoding.UTF8.GetBytes
             |> (fun buffer -> new MemoryStream (buffer))
-            |> Dict.FromStream
+            |> Dict.fromStream
+
+    let parseTarget = function
+        | "Traditional" -> Traditional
+        | "Simplified" -> Simplified
+        | "Pinyin" -> Pinyin
+        | "English" -> English
+        | _ -> ArgumentOutOfRangeException () |> raise
 
     [<Fact>]
-    let ``Dict.FromStream should return Dict`` () =
-        createDict []
+    let ``Cedict.fromStream should return entries`` () =
+        createEntries []
             |> should not' (be null)
 
     [<Fact>]
-    let ``Dict.FromStream should return empty Dict when there are no entries`` () =
-        createDict []
+    let ``Cedict.fromStream should return empty entries when there are no entries`` () =
+        createEntries []
             |> should haveLength 0
 
     [<Fact>]
-    let ``Dict.FromStream should not read invalid entries`` () =
-        createDict [""; Environment.NewLine; "Hello"; "你好"]
+    let ``Cedict.fromStream should not read invalid entries`` () =
+        createEntries [""; Environment.NewLine; "Hello"; "你好"]
             |> should haveLength 0
 
     [<Fact>]
-    let ``Dict.FromStream should read valid entries`` () =
-        createDict ["你好 你好 [ni3 hao3] /Hello!/Hi!/How are you?/"]
+    let ``Cedict.fromStream should read valid entries`` () =
+        createEntries ["你好 你好 [ni3 hao3] /Hello!/Hi!/How are you?/"]
             |> should haveLength 1
 
     [<Fact>]
-    let ``Dict.FromStream should parse valid entries`` () =
-        let dict = createDict ["你好 你好 [ni3 hao3] /Hello!/Hi!/How are you?/"];
-
+    let ``Cedict.fromStream should parse valid entries`` () =
+        let entries = createEntries ["你好 你好 [ni3 hao3] /Hello!/Hi!/How are you?/"];
         let expected = {
             Traditional = "你好"
             Simplified = "你好"
             Pinyin = "ni3 hao3"
             English = [|"Hello!"; "Hi!"; "How are you?"|]
         }
-
-        Seq.exactlyOne dict.Entries
+        List.exactlyOne entries
             |> should equal expected
 
     [<Theory>]
-    [<InlineData (Targets.Traditional, "中國")>]
-    [<InlineData (Targets.Simplified, "中国")>]
-    [<InlineData (Targets.Pinyin, "Zhong1 guo2")>]
-    [<InlineData (Targets.English, "China")>]
-    let ``Dict.Search should not return results for target`` target value =
-        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
-
-        let targets = Targets.All &&& ~~~target
-
+    [<InlineData ("Traditional", "中國")>]
+    [<InlineData ("Simplified", "中国")>]
+    [<InlineData ("Pinyin", "Zhong1 guo2")>]
+    [<InlineData ("English", "China")>]
+    let ``Cedict.search should not return results for target`` target value =
+        let entries = createEntries ["中國 中国 [Zhong1 guo2] /China/"]
+        let notTarget = parseTarget target |> (<>)
+        let targets = List.filter notTarget [Traditional; Simplified; Pinyin; English]
         let options = {
             Targets = targets
             Match = Match.Full
             Limit = 1
         }
-
-        let results = dict.Search (options, value)
-
-        Seq.length results
+        Dict.search options value entries
+            |> List.length
             |> should equal 0
 
     [<Theory>]
-    [<InlineData (Targets.Traditional, "中國")>]
-    [<InlineData (Targets.Simplified, "中国")>]
-    [<InlineData (Targets.Pinyin, "Zhong1 guo2")>]
-    [<InlineData (Targets.English, "China")>]
-    let ``Dict.Search should return results for target`` target value =
-        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
-
+    [<InlineData ("Traditional", "中國")>]
+    [<InlineData ("Simplified", "中国")>]
+    [<InlineData ("Pinyin", "Zhong1 guo2")>]
+    [<InlineData ("English", "China")>]
+    let ``Cedict.search should return results for target`` target value =
+        let entries = createEntries ["中國 中国 [Zhong1 guo2] /China/"]
+        let targets = [parseTarget target]
         let options = {
-            Targets = target
+            Targets = targets
             Match = Match.Full
             Limit = 1
         }
-
-        let results = dict.Search (options, value)
-
-        Seq.length results
+        Dict.search options value entries
+            |> List.length
             |> should equal 1
 
     [<Theory>]
-    [<InlineData (Targets.Traditional, "國")>]
-    [<InlineData (Targets.Simplified, "国")>]
-    [<InlineData (Targets.Pinyin, "guo2")>]
-    [<InlineData (Targets.English, "Ch")>]
-    let ``Dict.Search should return results for full match`` target value =
-        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
-
+    [<InlineData ("Traditional", "國")>]
+    [<InlineData ("Simplified", "国")>]
+    [<InlineData ("Pinyin", "guo2")>]
+    [<InlineData ("English", "Ch")>]
+    let ``Cedict.search should not return results for full match`` target value =
+        let entries = createEntries ["中國 中国 [Zhong1 guo2] /China/"]
+        let tagets = [parseTarget target]
         let options = {
-            Targets = target
+            Targets = tagets
             Match = Match.Full
             Limit = 1
         }
-
-        let results = dict.Search (options, value)
-
-        Seq.length results
+        Dict.search options value entries
+            |> List.length
             |> should equal 0
 
     [<Theory>]
-    [<InlineData (Targets.Traditional, "國")>]
-    [<InlineData (Targets.Simplified, "国")>]
-    [<InlineData (Targets.Pinyin, "guo2")>]
-    [<InlineData (Targets.English, "Ch")>]
-    let ``Dict.Search should return results for partial match`` target value =
-        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"]
-
+    [<InlineData ("Traditional", "國")>]
+    [<InlineData ("Simplified", "国")>]
+    [<InlineData ("Pinyin", "guo2")>]
+    [<InlineData ("English", "Ch")>]
+    let ``Cedict.search should return results for partial match`` target value =
+        let entries = createEntries ["中國 中国 [Zhong1 guo2] /China/"]
+        let targets = [parseTarget target]
         let options = {
-            Targets = target
+            Targets = targets
             Match = Match.Partial
             Limit = 1
         }
-
-        let results = dict.Search (options, value)
-
-        Seq.length results
+        Dict.search options value entries
+            |> List.length
             |> should equal 1
 
     [<Theory>]
@@ -130,16 +126,13 @@ module DictTests
     [<InlineData "中国">]
     [<InlineData "Zhong1 guo2">]
     [<InlineData "China">]
-    let ``Dict.Search should limit results`` value =
-        let dict = createDict ["中國 中国 [Zhong1 guo2] /China/"; "中國 中国 [Zhong1 guo2] /China/"]
-
+    let ``Cedict.search should limit results`` value =
+        let entries = createEntries ["中國 中国 [Zhong1 guo2] /China/"; "中國 中国 [Zhong1 guo2] /China/"]
         let options = {
-            Targets = Targets.All
+            Targets = [Traditional; Simplified; Pinyin; English]
             Match = Match.Full
             Limit = 1
         }
-
-        let results = dict.Search (options, value)
-
-        Seq.length results
+        Dict.search options value entries
+            |> List.length
             |> should equal 1

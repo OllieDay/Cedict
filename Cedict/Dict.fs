@@ -43,11 +43,8 @@ namespace Cedict
             | _ -> None
 
         let private readEntries =
-            let rec readEntries entries = function
-                | [] -> entries
-                | head :: tail ->
-                    readEntries (readEntry head :: entries) tail
-            readEntries [] >> List.choose id
+            List.map readEntry
+                >> List.choose id
 
         let fromStream : Stream -> Entry list =
             readLines >> readEntries
